@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sax Transcriber</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, sans-serif; background: #f5f5f0; color: #1a1a1a; }
+.app { max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.header { text-align: center; margin-bottom: 1.25rem; }
+.header h1 { font-size: 22px; font-weight: 500; }
+.header p { font-size: 14px; color: #666; margin-top: 4px; }
+.card { background: white; border: 1px solid #e8e8e8; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+.fix-card { border-color: #e67e22; background: #fffaf5; display: none; }
+.fix-card h3 { font-size: 15px; font-weight: 500; color: #884400; margin-bottom: 1rem; }
+.step { display: flex; gap: 12px; margin-bottom: 1rem; align-items: flex-start; }
+.step-num { width: 26px; height: 26px; border-radius: 50%; background: #e67e22; color: white; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step p { font-size: 14px; line-height: 1.6; color: #553300; }
+.path-box { margin-top: 6px; background: #f5e6d0; border-radius: 6px; padding: 8px 12px; font-size: 13px; color: #884400; font-family: monospace; }
+.row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; flex-wrap: wrap; }
+.row label { font-size: 13px; color: #666; min-width: 80px; }
+select { flex: 1; min-width: 140px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; padding: 6px 10px; background: #f9f9f9; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; border: 1px solid #ddd; background: white; color: #333; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn:hover { background: #f5f5f5; }
+.btn.record { border-color: #c0392b; color: #c0392b; }
+.btn.record.active { background: #c0392b; color: white; }
+.btn.export { border-color: #185FA5; color: #185FA5; }
+.btn.test-btn { border-color: #e67e22; color: #884400; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.info-box { background: #f0f7ff; border: 1px solid #c0d8f0; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #1a4a7a; margin-bottom: 1rem; line-height: 1.5; }
+.status-bar { display: flex; align-items: center; gap: 10px; margin-top: 1rem; font-size: 13px; color: #666; flex-wrap: wrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+.dot.listening { background: #c0392b; animation: pulse 1s infinite; }
+.dot.ready { background: #27ae60; }
+.dot.error { background: #c0392b; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+.pitch-big { font-size: 26px; font-weight: 500; }
+.dur-indicator { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.dur-pip { width: 10px; height: 10px; border-radius: 50%; background: #eee; border: 1px solid #ddd; transition: background 0.1s; }
+.dur-pip.active { background: #c0392b; border-color: #c0392b; }
+.dur-label { font-size: 12px; color: #999; margin-left: 4px; }
+#staff-container { min-height: 220px; overflow-x: auto; }
+.empty-state { text-align: center; color: #aaa; font-size: 14px; padding: 3rem; }
+.note-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.75rem; min-height: 28px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; background: #f0f0f0; border: 1px solid #e0e0e0; font-size: 12px; }
+.chip .rm { cursor: pointer; color: #aaa; margin-left: 2px; font-size: 11px; }
+.chip .rm:hover { color: #c0392b; }
+.chip.whole { background: #e8f4ff; border-color: #b3d4f5; }
+.chip.half { background: #f0f8e8; border-color: #c5e0a0; }
+.note-hdr { display: flex; justify-content: space-between; align-items: center; }
+.note-hdr span { font-size: 14px; font-weight: 500; }
+.clr { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.clr:hover { background: #f0f0f0; }
+.tuning-track { height: 6px; background: #eee; border-radius: 3px; margin-top: 8px; }
+.tuning-fill { height: 100%; background: #ccc; border-radius: 3px; width: 50%; transition: width 0.1s, background 0.1s; }
+.tuning-labels { display: flex; justify-content: space-between; font-size: 11px; color: #aaa; margin-top: 2px; }
+.bpm-row { display: flex; align-items: center; gap: 10px; margin-top: 0.75rem; }
+.bpm-row label { font-size: 13px; color: #666; }
+.bpm-val { font-size: 15px; font-weight: 500; min-width: 70px; }
+.tap-btn { border-color: #185FA5; color: #185FA5; font-size: 15px; padding: 10px 22px; }
+.tap-btn.flash { background: #185FA5; color: white; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>Sax Transcriber</h1>
+    <p>Play into your mic → notes land on the staff with correct sax transposition</p>
+  </div>
+
+  <div class="card fix-card" id="fixGuide">
+    <h3>Microphone Access Fix</h3>
+    <p style="font-size:13px;color:#884400;margin-bottom:12px;font-weight:500">On iPhone / iPad:</p>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div><p>Open the <strong>Settings</strong> app on your iPhone or iPad</p><div class="path-box">Settings app (grey gear icon)</div></div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div><p>Scroll down and tap <strong>Safari</strong></p><div class="path-box">Settings → Safari</div></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div><p>Tap <strong>Microphone</strong> → set to <strong>Allow</strong></p><div class="path-box">Safari → Microphone → Allow</div></div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div><p>Come back to this page and tap Record. Safari may ask to confirm — tap <strong>Allow</strong>.</p></div>
+    </div>
+    <p style="font-size:13px;color:#884400;margin:12px 0 8px;font-weight:500">On Mac:</p>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div><p>Click <strong>Safari</strong> in the menu bar → <strong>Settings…</strong> → <strong>Websites</strong> tab → <strong>Microphone</strong> → set this site to <strong>Allow</strong></p></div>
+    </div>
+    <button class="btn test-btn" onclick="testMic()" style="margin-top:8px">Test Microphone</button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>Instrument</label>
+      <select id="instrument">
+        <option value="alto" selected>Alto saxophone</option>
+        <option value="bari">Baritone saxophone</option>
+        <option value="tenor">Tenor saxophone</option>
+        <option value="soprano">Soprano saxophone</option>
+        <option value="concert">Concert pitch (flute, piano, etc.)</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label>Key sig.</label>
+      <select id="keySig" onchange="renderStaff()">
+        <option value="C">C major (no sharps/flats)</option>
+        <option value="G">G major (1♯)</option>
+        <option value="D">D major (2♯)</option>
+        <option value="A">A major (3♯)</option>
+        <option value="E">E major (4♯)</option>
+        <option value="B">B major (5♯)</option>
+        <option value="F#">F# major (6♯)</option>
+        <option value="C#">C# major (7♯)</option>
+        <option value="F">F major (1♭)</option>
+        <option value="Bb">Bb major (2♭)</option>
+        <option value="Eb">Eb major (3♭)</option>
+        <option value="Ab">Ab major (4♭)</option>
+        <option value="Db">Db major (5♭)</option>
+        <option value="Gb">Gb major (6♭)</option>
+        <option value="Cb">Cb major (7♭)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Time sig.</label>
+      <select id="timesig">
+        <option value="4/4" selected>4/4</option>
+        <option value="3/4">3/4</option>
+        <option value="2/4">2/4</option>
+        <option value="6/8">6/8</option>
+      </select>
+      <label style="min-width:40px">Clef</label>
+      <select id="clef">
+        <option value="treble" selected>Treble</option>
+        <option value="bass">Bass</option>
+      </select>
+    </div>
+    <div class="bpm-row">
+      <label>Tempo</label>
+      <button class="btn tap-btn" id="tapBtn" onclick="tapTempo()">Tap</button>
+      <span class="bpm-val" id="bpmVal">80 BPM</span>
+      <button class="btn" onclick="resetTempo()" style="padding:6px 10px;font-size:12px;color:#999">Reset</button>
+    </div>
+    <div class="btn-row" style="margin-top:1rem">
+      <button class="btn record" id="recordBtn" onclick="toggleRecord()">Record</button>
+      <button class="btn" id="stopBtn" onclick="stopRecording()" disabled>Stop</button>
+      <button class="btn export" id="exportBtn" onclick="exportPDF()" disabled>Export PDF</button>
+    </div>
+    <div class="status-bar">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Ready — tap Record to begin</span>
+      <div style="flex:1"></div>
+      <span class="pitch-big" id="pitchDisplay">—</span>
+      <span id="centsDisplay" style="font-size:13px;color:#999;margin-left:4px"></span>
+    </div>
+    <div class="tuning-track"><div class="tuning-fill" id="tuningFill"></div></div>
+    <div class="tuning-labels"><span>Flat</span><span>In tune</span><span>Sharp</span></div>
+    <div class="dur-indicator">
+      <span style="font-size:12px;color:#999">Duration:</span>
+      <div class="dur-pip" id="pip1"></div>
+      <div class="dur-pip" id="pip2"></div>
+      <div class="dur-pip" id="pip3"></div>
+      <div class="dur-pip" id="pip4"></div>
+      <span class="dur-label" id="durLabel">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="staff-container"><div class="empty-state">Staff appears here as you play</div></div>
+  </div>
+
+  <div class="card" id="debugCard">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:14px;font-weight:500">Debug — mic signal</span>
+      <button class="btn" onclick="toggleDebug()" id="debugBtn" style="padding:4px 12px;font-size:12px">Show</button>
+    </div>
+    <div id="debugPanel" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="background:#f9f9f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:11px;color:#999;margin-bottom:4px">Raw frequency (Hz)</div>
+          <div style="font-size:22px;font-weight:500" id="dbgFreq">—</div>
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:11px;color:#999;margin-bottom:4px">Volume (RMS)</div>
+          <div style="font-size:22px;font-weight:500" id="dbgRms">—</div>
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:11px;color:#999;margin-bottom:4px">Pitch detected</div>
+          <div style="font-size:22px;font-weight:500" id="dbgConcert">—</div>
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:10px;text-align:center">
+          <div style="font-size:11px;color:#999;margin-bottom:4px">Fingered note (written)</div>
+          <div style="font-size:22px;font-weight:500" id="dbgWritten">—</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#999;margin-bottom:4px">Silence threshold: notes only commit when RMS &gt; 0.008 and freq detected</div>
+      <div style="font-size:12px;color:#666" id="dbgLog" style="font-family:monospace;max-height:120px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="note-hdr">
+      <span>Captured notes</span>
+      <button class="clr" onclick="clearNotes()">Clear all</button>
+    </div>
+    <div class="note-chips" id="noteChips"><span style="font-size:13px;color:#aaa">No notes yet</span></div>
+  </div>
+</div>
+
+<script>
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// Transposition: mic hears concert pitch, add semitones to get written sax note
+// Alto/Bari (Eb instrument): written = concert + 9 semitones
+// Tenor/Soprano (Bb instrument): written = concert + 2 semitones
+const INSTRUMENT_SEMITONES = {
+  'alto':9, 'bari':9, 'tenor':2, 'soprano':2, 'concert':0
+};
+function getInstrumentSemitones() {
+  const val = document.getElementById('instrument').value;
+  return INSTRUMENT_SEMITONES[val] || 0;
+}
+
+// Flat spellings for black keys — always prefer these for sax
+const TO_FLAT = {'A#':'Bb','C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab'};
+
+// Convert a sharp note name to its flat equivalent if one exists
+function preferFlat(name) { return TO_FLAT[name] || name; }
+
+// ── Key signature data ─────────────────────────────────────────────────────
+const KEY_DATA = {
+  'C':  { sharps:[],                            flats:[] },
+  'G':  { sharps:['F'],                          flats:[] },
+  'D':  { sharps:['F','C'],                      flats:[] },
+  'A':  { sharps:['F','C','G'],                  flats:[] },
+  'E':  { sharps:['F','C','G','D'],              flats:[] },
+  'B':  { sharps:['F','C','G','D','A'],          flats:[] },
+  'F#': { sharps:['F','C','G','D','A','E'],      flats:[] },
+  'C#': { sharps:['F','C','G','D','A','E','B'],  flats:[] },
+  'F':  { sharps:[], flats:['B'] },
+  'Bb': { sharps:[], flats:['B','E'] },
+  'Eb': { sharps:[], flats:['B','E','A'] },
+  'Ab': { sharps:[], flats:['B','E','A','D'] },
+  'Db': { sharps:[], flats:['B','E','A','D','G'] },
+  'Gb': { sharps:[], flats:['B','E','A','D','G','C'] },
+  'Cb': { sharps:[], flats:['B','E','A','D','G','C','F'] },
+};
+
+// Treble clef accidental positions (step = diatonic steps below F5 top line)
+const TREBLE_SHARP_POS = [
+  {note:'F',step:-1},{note:'C',step:2},{note:'G',step:-2},
+  {note:'D',step:1},{note:'A',step:4},{note:'E',step:0},{note:'B',step:3}
+];
+const TREBLE_FLAT_POS = [
+  {note:'B',step:3},{note:'E',step:0},{note:'A',step:4},
+  {note:'D',step:1},{note:'G',step:5},{note:'C',step:2},{note:'F',step:6}
+];
+const BASS_SHARP_POS = [
+  {note:'F',step:1},{note:'C',step:4},{note:'G',step:0},
+  {note:'D',step:3},{note:'A',step:6},{note:'E',step:2},{note:'B',step:5}
+];
+const BASS_FLAT_POS = [
+  {note:'B',step:5},{note:'E',step:2},{note:'A',step:6},
+  {note:'D',step:3},{note:'G',step:7},{note:'C',step:4},{note:'F',step:8}
+];
+
+function getKey() {
+  return document.getElementById('keySig').value || 'C';
+}
+
+function keySigWidth(key) {
+  const ks = KEY_DATA[key] || KEY_DATA['C'];
+  const count = ks.sharps.length + ks.flats.length;
+  return count > 0 ? count * 11 + 6 : 0;
+}
+
+function renderKeySigSVG(key, clef, x) {
+  const ks = KEY_DATA[key] || KEY_DATA['C'];
+  const isSharp = ks.sharps.length > 0;
+  const accList = isSharp ? ks.sharps : ks.flats;
+  const positions = isSharp
+    ? (clef === 'bass' ? BASS_SHARP_POS : TREBLE_SHARP_POS)
+    : (clef === 'bass' ? BASS_FLAT_POS  : TREBLE_FLAT_POS);
+  const symbol = isSharp ? '#' : 'b';
+  let s = '';
+  accList.forEach(function(_, i) {
+    const pos = positions[i];
+    const ax = x + i*11 + 6;
+    const ay = ST + pos.step * (LG / 2) + 4;
+    s += '<text x="' + ax + '" y="' + ay + '" font-size="14" fill="#222" font-family="Times New Roman,serif" text-anchor="middle">' + symbol + '</text>';
+  });
+  return s;
+}
+
+
+
+function noteNeedsAccidental(noteName, key) {
+  const ks = KEY_DATA[key] || KEY_DATA['C'];
+  const isFlat  = noteName.length === 2 && noteName[1] === 'b';
+  const isSharp = noteName.includes('#');
+  const letter  = isFlat ? noteName[0] : noteName[0];
+  // Note is already in the key signature — no accidental needed on note head
+  if (isSharp && ks.sharps.includes(letter)) return false;
+  if (isFlat  && ks.flats.includes(letter))  return false;
+  // Natural note conflicts with key sig — show natural sign
+  if (!isSharp && !isFlat && ks.sharps.includes(letter)) return 'natural';
+  if (!isSharp && !isFlat && ks.flats.includes(letter))  return 'natural';
+  if (isSharp) return '#';
+  if (isFlat)  return 'b';
+  return false;
+}
+
+// ── Staff layout ───────────────────────────────────────────────────────────
+const ST=40, LG=12, NR=6;
+const CLEF_W=52, TS_W=28, PAD_L=16;
+const WHOLE_W=52, HALF_W=40, QTR_W=28, EIGHTH_W=22;
+
+let BPM=80;
+let tapTimes=[];
+let tapFlashTimer=null;
+
+function tapTempo() {
+  const now = Date.now();
+  // Clear taps older than 3 seconds
+  tapTimes = tapTimes.filter(t => now - t < 3000);
+  tapTimes.push(now);
+
+  // Flash the button
+  const btn = document.getElementById('tapBtn');
+  btn.classList.add('flash');
+  clearTimeout(tapFlashTimer);
+  tapFlashTimer = setTimeout(() => btn.classList.remove('flash'), 150);
+
+  if (tapTimes.length >= 2) {
+    // Average the intervals between taps
+    let total = 0;
+    for (let i = 1; i < tapTimes.length; i++) total += tapTimes[i] - tapTimes[i-1];
+    const avgInterval = total / (tapTimes.length - 1);
+    BPM = Math.round(60000 / avgInterval);
+    BPM = Math.min(200, Math.max(40, BPM));
+    document.getElementById('bpmVal').textContent = BPM + ' BPM';
+  } else {
+    document.getElementById('bpmVal').textContent = 'Tap…';
+  }
+}
+
+function resetTempo() {
+  tapTimes = [];
+  BPM = 80;
+  document.getElementById('bpmVal').textContent = '80 BPM';
+}
+
+function updateBPM() { /* kept for compatibility */ }
+function beatMs(){ return 60000/BPM; }
+function durationFromMs(ms){
+  const b=ms/beatMs();
+  if(b>=3.5)return 'w'; if(b>=1.75)return 'h'; if(b>=0.75)return 'q'; return '8';
+}
+function durLabel(d){return{w:'Whole',h:'Half',q:'Quarter','8':'Eighth'}[d]||'—';}
+function durBeats(d){return{w:4,h:2,q:1,'8':0.5}[d]||1;}
+function noteWidth(dur){return{w:WHOLE_W,h:HALF_W,q:QTR_W,'8':EIGHTH_W}[dur]||QTR_W;}
+
+function noteToStaffPos(noteName, octave, clef) {
+  // Diatonic steps from reference note (top staff line).
+  // Treble: top line = F5. Bass: top line = A3.
+  // Positive yOff = lower on page (below top line). Negative = above.
+  const DIATONIC = {C:0,D:1,E:2,F:3,G:4,A:5,B:6};
+  const refNote   = clef === 'bass' ? 'A' : 'F';
+  const refOctave = clef === 'bass' ? 3   : 5;
+  // Extract letter from note name (handles 'Bb', 'C#', 'Db', etc.)
+  const letter = noteName.length === 2 && noteName[1] === 'b'
+    ? noteName[0]
+    : noteName[0];
+  const noteTotal = octave * 7 + DIATONIC[letter];
+  const refTotal  = refOctave * 7 + DIATONIC[refNote];
+  const step = refTotal - noteTotal;
+  return step * (LG / 2);
+}
+
+
+
+function renderStaffSVG(notes, clef, timeSig, key) {
+  if(!notes.length) return null;
+  const [bStr,bvStr]=timeSig.split('/');
+  const beatsPerMeasure=parseInt(bStr);
+  const ksW=keySigWidth(key);
+
+  const measures=[];
+  let cur=[],beats=0;
+  notes.forEach(n=>{
+    const nb=durBeats(n.dur);
+    if(beats+nb>beatsPerMeasure&&cur.length){measures.push(cur);cur=[];beats=0;}
+    cur.push(n); beats+=nb;
+    if(beats>=beatsPerMeasure){measures.push(cur);cur=[];beats=0;}
+  });
+  if(cur.length) measures.push(cur);
+
+  function measureContentW(m){return m.reduce((s,n)=>s+noteWidth(n.dur)+4,0)+PAD_L+16;}
+  const firstW=CLEF_W+ksW+TS_W+measureContentW(measures[0]);
+  const otherWs=measures.slice(1).map(m=>measureContentW(m));
+  const totalW=Math.max(680,firstW+otherWs.reduce((a,b)=>a+b,0)+20);
+  const svgH=ST+LG*4+70;
+
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${svgH}">`;
+  let x=10;
+
+  measures.forEach((mNotes,mIdx)=>{
+    const mW=mIdx===0?firstW:otherWs[mIdx-1];
+    for(let l=0;l<5;l++) svg+=`<line x1="${x}" y1="${ST+l*LG}" x2="${x+mW}" y2="${ST+l*LG}" stroke="#333" stroke-width="1"/>`;
+    svg+=`<line x1="${x}" y1="${ST}" x2="${x}" y2="${ST+LG*4}" stroke="#333" stroke-width="1.5"/>`;
+
+    let nx=x;
+    if(mIdx===0){
+      if(clef==='treble'){
+        svg+=`<text x="${nx+14}" y="${ST+LG*4+2}" font-size="52" fill="#222" font-family="Times New Roman,serif" text-anchor="middle">𝄞</text>`;
+      } else {
+        svg+=`<text x="${nx+16}" y="${ST+LG+18}" font-size="38" fill="#222" font-family="Times New Roman,serif" text-anchor="middle">𝄢</text>`;
+      }
+      nx+=CLEF_W;
+        if(ksW>0){ svg+=renderKeySigSVG(key,clef,nx); nx+=ksW; }
+      svg+=`<text x="${nx+10}" y="${ST+LG*1.6}" font-size="${LG*1.8}" fill="#222" font-weight="bold" text-anchor="middle">${bStr}</text>`;
+      svg+=`<text x="${nx+10}" y="${ST+LG*3.8}" font-size="${LG*1.8}" fill="#222" font-weight="bold" text-anchor="middle">${bvStr}</text>`;
+      nx+=TS_W;
+    }
+    nx+=PAD_L;
+
+    mNotes.forEach(note=>{
+      const nw=noteWidth(note.dur);
+      const cx=nx+nw/2;
+      if(note.rest){
+        const ry=ST+LG*2;
+        if(note.dur==='w') svg+=`<rect x="${cx-8}" y="${ry-4}" width="16" height="6" fill="#333" rx="1"/>`;
+        else if(note.dur==='h') svg+=`<rect x="${cx-7}" y="${ry}" width="14" height="5" fill="none" stroke="#333" stroke-width="1.5" rx="1"/>`;
+        else if(note.dur==='q') svg+=`<text x="${cx}" y="${ry+8}" font-size="20" fill="#555" text-anchor="middle" font-family="Times New Roman,serif">r</text>`;
+        else svg+=`<text x="${cx}" y="${ry+8}" font-size="18" fill="#555" text-anchor="middle" font-family="Times New Roman,serif">r</text>`;
+      } else {
+        const yOff=noteToStaffPos(note.name,note.octave,clef);
+        const ny=ST+yOff;
+        const isOpen=note.dur==='w'||note.dur==='h';
+        const acc=noteNeedsAccidental(note.name,key);
+
+        // Ledger lines
+        for(let ly=LG*4+LG;ly<=yOff+1;ly+=LG)
+          svg+=`<line x1="${cx-NR-4}" y1="${ST+ly}" x2="${cx+NR+4}" y2="${ST+ly}" stroke="#333" stroke-width="1"/>`;
+        for(let ly=-LG;ly>=yOff-1;ly-=LG)
+          svg+=`<line x1="${cx-NR-4}" y1="${ST+ly}" x2="${cx+NR+4}" y2="${ST+ly}" stroke="#333" stroke-width="1"/>`;
+
+        if(isOpen){
+          svg+=`<ellipse cx="${cx}" cy="${ny}" rx="${NR}" ry="${NR*0.72}" fill="white" stroke="#1a1a1a" stroke-width="1.5" transform="rotate(-15,${cx},${ny})"/>`;
+        } else {
+          svg+=`<ellipse cx="${cx}" cy="${ny}" rx="${NR}" ry="${NR*0.72}" fill="#1a1a1a" transform="rotate(-15,${cx},${ny})"/>`;
+        }
+        if(note.dur!=='w'){
+          const sd=yOff<LG*2?1:-1;
+          const sx=sd>0?cx+NR-1:cx-NR+1;
+          const sy2=ny+sd*LG*3.5;
+          svg+=`<line x1="${sx}" y1="${ny}" x2="${sx}" y2="${sy2}" stroke="#1a1a1a" stroke-width="1.5"/>`;
+          if(note.dur==='8'){
+            if(sd<0) svg+=`<path d="M${sx},${sy2} C${sx+14},${sy2+8} ${sx+16},${sy2+18} ${sx+4},${sy2+22}" stroke="#1a1a1a" stroke-width="1.5" fill="none"/>`;
+            else svg+=`<path d="M${sx},${sy2} C${sx+14},${sy2-8} ${sx+16},${sy2-18} ${sx+4},${sy2-22}" stroke="#1a1a1a" stroke-width="1.5" fill="none"/>`;
+          }
+        }
+        if(acc==='#') svg+=`<text x="${cx-NR-9}" y="${ny+4}" font-size="14" fill="#1a1a1a" text-anchor="middle" font-family="Times New Roman,serif">#</text>`;
+        else if(acc==='b') svg+=`<text x="${cx-NR-9}" y="${ny+4}" font-size="14" fill="#1a1a1a" text-anchor="middle" font-family="Times New Roman,serif">b</text>`;
+        else if(acc==='natural') svg+=`<text x="${cx-NR-9}" y="${ny+4}" font-size="14" fill="#1a1a1a" text-anchor="middle" font-family="Times New Roman,serif">n</text>`;
+
+        svg+=`<text x="${cx}" y="${Math.max(ST+LG*4,ny)+20}" font-size="10" fill="#999" text-anchor="middle">${note.name}${note.octave}</text>`;
+      }
+      nx+=nw+4;
+    });
+    svg+=`<line x1="${x+mW}" y1="${ST}" x2="${x+mW}" y2="${ST+LG*4}" stroke="#333" stroke-width="1.5"/>`;
+    x+=mW;
+  });
+  svg+='</svg>';
+  return svg;
+}
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+let audioCtx,analyser,micStream,animFrame;
+let isRecording=false,capturedNotes=[],currentNote=null,silenceStart=null;
+const SILENCE_GAP_MS=200;
+
+async function testMic(){
+  setStatus('','Testing microphone…');
+  try{
+    const s=await navigator.mediaDevices.getUserMedia({audio:true});
+    s.getTracks().forEach(t=>t.stop());
+    setStatus('ready','✓ Microphone works! Tap Record to start.');
+    document.getElementById('fixGuide').style.display='none';
+  }catch(e){showError(e);}
+}
+
+async function toggleRecord(){
+  if(isRecording)return;
+  setStatus('','Requesting microphone…');
+  try{
+    // iOS: create AudioContext inside user gesture so it's not suspended
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // iOS requires explicit resume inside the gesture handler
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        sampleRate: audioCtx.sampleRate
+      }
+    });
+    micStream = stream;
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 4096;
+    analyser.smoothingTimeConstant = 0;  // no smoothing for pitch detection
+    const source = audioCtx.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    isRecording=true; currentNote=null; silenceStart=null;
+    document.getElementById('recordBtn').classList.add('active');
+    document.getElementById('stopBtn').disabled=false;
+    document.getElementById('fixGuide').style.display='none';
+    dbgLog('AudioContext state: ' + audioCtx.state + ' sampleRate: ' + audioCtx.sampleRate);
+    setStatus('listening','Listening… play a note');
+    detectPitch();
+  }catch(e){showError(e);}
+}
+
+function showError(e){
+  const name = e.name || 'UnknownError';
+  const msg  = e.message || '';
+  let fix = '';
+
+  if(name==='NotAllowedError'||name==='PermissionDeniedError'){
+    fix = 'iOS fix: Go to Settings → Safari → Microphone → allow rickparma.com. Then reload this page.';
+    document.getElementById('fixGuide').style.display='block';
+    window.scrollTo({top:0,behavior:'smooth'});
+  } else if(name==='NotFoundError'){
+    fix = 'No microphone detected on this device.';
+  } else if(name==='NotReadableError'||name==='TrackStartError'){
+    fix = 'Mic is in use by another app. Close other apps and try again.';
+  } else if(name==='SecurityError'){
+    fix = 'Page must be served over HTTPS. Make sure the URL starts with https://';
+  } else if(name==='AbortError'){
+    fix = 'Request was cancelled. Please try again.';
+  } else {
+    fix = 'Error: ' + name + ' — ' + msg;
+  }
+
+  setStatus('error', fix);
+  dbgLog('ERROR: ' + name + ' | ' + msg);
+
+  // Show a clear alert on iOS so the user knows exactly what to do
+  if(name==='NotAllowedError'||name==='PermissionDeniedError'){
+    alert('Microphone access blocked.\n\nTo fix:\n1. Open iPhone/iPad Settings\n2. Scroll down to Safari\n3. Tap Microphone\n4. Set rickparma.com to Allow\n5. Come back and tap Record again.');
+  }
+}
+
+function setStatus(cls,text){
+  document.getElementById('statusDot').className='dot '+cls;
+  document.getElementById('statusText').textContent=text;
+}
+
+function freqToNote(freq){
+  if(!freq||freq<50||freq>4200)return null;
+  const midi=12*Math.log2(freq/440)+69,midiR=Math.round(midi);
+  return{name:NOTE_NAMES[((midiR%12)+12)%12],octave:Math.floor(midiR/12)-1,cents:Math.round((midi-midiR)*100),midi:midiR};
+}
+
+let debugVisible = false;
+function toggleDebug() {
+  debugVisible = !debugVisible;
+  document.getElementById('debugPanel').style.display = debugVisible ? 'block' : 'none';
+  document.getElementById('debugBtn').textContent = debugVisible ? 'Hide' : 'Show';
+}
+function dbgLog(msg) {
+  const el = document.getElementById('dbgLog');
+  if (!el) return;
+  el.innerHTML = msg + '<br>' + el.innerHTML;
+  const lines = el.innerHTML.split('<br>');
+  if (lines.length > 20) el.innerHTML = lines.slice(0,20).join('<br>');
+}
+
+function getRMS(buf) {
+  let s = 0;
+  for (let i = 0; i < buf.length; i++) s += buf[i]*buf[i];
+  return Math.sqrt(s / buf.length);
+}
+
+function autoCorrelate(buf, sr) {
+  const rms = getRMS(buf);
+  if (rms < 0.005) return { freq: -1, rms };   // lowered threshold for iOS
+
+  // Find zero crossings to trim buffer
+  let r1 = 0, r2 = buf.length - 1;
+  for (let i = 0; i < buf.length / 2; i++) { if (Math.abs(buf[i]) < 0.2) { r1 = i; break; } }
+  for (let i = 1; i < buf.length / 2; i++) { if (Math.abs(buf[buf.length-i]) < 0.2) { r2 = buf.length-i; break; } }
+  const b = buf.slice(r1, r2);
+  const N = b.length;
+  if (N < 2) return { freq: -1, rms };
+
+  // Autocorrelation
+  const c = new Float32Array(N);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N-i; j++) c[i] += b[j]*b[j+i];
+
+  // Find first dip then first peak
+  let d = 0;
+  while (d < N-1 && c[d] > c[d+1]) d++;
+  let mx = -1, mp = -1;
+  for (let i = d; i < N; i++) { if (c[i] > mx) { mx = c[i]; mp = i; } }
+  if (mp === -1 || mp === 0) return { freq: -1, rms };
+
+  // Parabolic interpolation for sub-sample accuracy
+  let T = mp;
+  if (mp > 0 && mp < N-1) {
+    const x1=c[mp-1], x2=c[mp], x3=c[mp+1], a=(x1+x3-2*x2)/2;
+    if (a !== 0) T -= (x3-x1)/(4*a);
+  }
+  return { freq: sr / T, rms };
+}
+
+function updateDurIndicator(ms){
+  const beats=ms/beatMs(),pips=Math.min(4,Math.max(1,Math.ceil(beats)));
+  for(let i=1;i<=4;i++) document.getElementById('pip'+i).className='dur-pip'+(i<=pips?' active':'');
+  document.getElementById('durLabel').textContent=durLabel(durationFromMs(ms));
+}
+
+function commitNote(){
+  if(!currentNote)return;
+  const ms=Date.now()-currentNote.startTime;
+  if(ms<60){currentNote=null;return;}  // note too short, ignore
+  dbgLog('Commit: ' + currentNote.name+currentNote.octave + ' ' + ms + 'ms → ' + durationFromMs(ms));
+  const dur=durationFromMs(ms);
+
+  // No transposition — write exactly what the mic hears
+  const writtenName = preferFlat(NOTE_NAMES[((currentNote.midi%12)+12)%12]);
+  const writtenOctave = Math.floor(currentNote.midi/12)-1;
+
+  capturedNotes.push({name:writtenName,octave:writtenOctave,dur,ms:Math.round(ms)});
+  currentNote=null;
+  renderStaff(); renderChips();
+  document.getElementById('exportBtn').disabled=false;
+}
+
+function detectPitch(){
+  const buf = new Float32Array(analyser.fftSize);
+
+  // iOS requires AudioContext to be resumed after user gesture
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(() => dbgLog('AudioContext resumed'));
+  }
+
+  (function loop(){
+    if (!isRecording) return;
+
+    // iOS safety: re-resume if suspended mid-session
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    analyser.getFloatTimeDomainData(buf);
+    const result = autoCorrelate(buf, audioCtx.sampleRate);
+    const freq = result.freq;
+    const rms  = result.rms;
+    const now  = Date.now();
+
+    // Update debug panel
+    document.getElementById('dbgRms').textContent = rms.toFixed(4);
+    document.getElementById('dbgFreq').textContent = freq > 0 ? freq.toFixed(1) : '(silence)';
+
+    if (freq > 0) {
+      const note = freqToNote(freq);
+      if (note) {
+        // Update debug
+        document.getElementById('dbgConcert').textContent = note.name + note.octave;
+        const semi = getInstrumentSemitones();
+        const wMidi = note.midi + semi;
+        const wName = preferFlat(NOTE_NAMES[((wMidi%12)+12)%12]);
+        const wOct  = Math.floor(wMidi/12)-1;
+        document.getElementById('dbgWritten').textContent = wName + wOct;
+
+        silenceStart = null;
+        document.getElementById('pitchDisplay').textContent = note.name + note.octave;
+        const pct = Math.min(100, Math.max(0, 50 + note.cents/2));
+        const fill = document.getElementById('tuningFill');
+        fill.style.width = pct + '%';
+        fill.style.background = Math.abs(note.cents)<10?'#27ae60':Math.abs(note.cents)<25?'#e67e22':'#c0392b';
+        document.getElementById('centsDisplay').textContent = (note.cents>=0?'+':'') + note.cents + '¢';
+
+        if (!currentNote) {
+          currentNote = {name:note.name, octave:note.octave, midi:note.midi, startTime:now};
+          dbgLog('Note ON: ' + note.name + note.octave + ' ' + freq.toFixed(1) + 'Hz rms=' + rms.toFixed(3));
+        } else if (note.midi !== currentNote.midi) {
+          dbgLog('Note change: ' + currentNote.name+currentNote.octave + ' → ' + note.name+note.octave);
+          commitNote();
+          currentNote = {name:note.name, octave:note.octave, midi:note.midi, startTime:now};
+        }
+        if (currentNote) updateDurIndicator(now - currentNote.startTime);
+      }
+    } else {
+      document.getElementById('pitchDisplay').textContent = '—';
+      document.getElementById('centsDisplay').textContent = '';
+      document.getElementById('tuningFill').style.width = '50%';
+      document.getElementById('tuningFill').style.background = '#ccc';
+
+      if (currentNote) {
+        if (!silenceStart) {
+          silenceStart = now;
+        } else if (now - silenceStart > SILENCE_GAP_MS) {
+          dbgLog('Note OFF after ' + (now - currentNote.startTime) + 'ms rms=' + rms.toFixed(4));
+          commitNote();
+          silenceStart = null;
+        }
+        if (currentNote) updateDurIndicator(now - currentNote.startTime);
+      } else {
+        for(let i=1;i<=4;i++) document.getElementById('pip'+i).className='dur-pip';
+        document.getElementById('durLabel').textContent = '—';
+      }
+    }
+    animFrame = requestAnimationFrame(loop);
+  })();
+}
+
+function stopRecording(){
+  commitNote();
+  isRecording=false;
+  cancelAnimationFrame(animFrame);
+  if(micStream)micStream.getTracks().forEach(t=>t.stop());
+  if(audioCtx)audioCtx.close();
+  document.getElementById('recordBtn').classList.remove('active');
+  document.getElementById('stopBtn').disabled=true;
+  setStatus('ready',capturedNotes.length?'Done — '+capturedNotes.length+' notes captured':'Recording stopped');
+  document.getElementById('pitchDisplay').textContent='—';
+  document.getElementById('centsDisplay').textContent='';
+  if(capturedNotes.length)document.getElementById('exportBtn').disabled=false;
+}
+
+function clearNotes(){capturedNotes=[];renderStaff();renderChips();document.getElementById('exportBtn').disabled=true;}
+function removeNote(i){capturedNotes.splice(i,1);renderStaff();renderChips();if(!capturedNotes.length)document.getElementById('exportBtn').disabled=true;}
+
+function renderChips(){
+  const el=document.getElementById('noteChips');
+  if(!capturedNotes.length){el.innerHTML='<span style="font-size:13px;color:#aaa">No notes yet</span>';return;}
+  const ds={w:'W',h:'H',q:'Q','8':'E'};
+  el.innerHTML=capturedNotes.map((n,i)=>
+    `<div class="chip ${n.dur==='w'?'whole':n.dur==='h'?'half':''}">${ds[n.dur]||'Q'} ${n.name}${n.octave}<span style="color:#aaa;font-size:10px;margin-left:2px">${n.ms}ms</span><span class="rm" onclick="removeNote(${i})">✕</span></div>`
+  ).join('');
+}
+
+
+
+function renderStaff(){
+  const container=document.getElementById('staff-container');
+  if(!capturedNotes.length){container.innerHTML='<div class="empty-state">Staff appears here as you play</div>';return;}
+  const clef=document.getElementById('clef').value;
+  const ts=document.getElementById('timesig').value;
+  const key=getKey();
+  const svgStr=renderStaffSVG(capturedNotes,clef,ts,key);
+  container.innerHTML=svgStr||'<div class="empty-state">Could not render staff</div>';
+}
+
+function exportPDF(){
+  const svgEl=document.querySelector('#staff-container svg');
+  if(!svgEl){alert('No staff to export yet.');return;}
+  const inst=document.getElementById('instrument').value;
+  const instLabel=document.getElementById('instrument').options[document.getElementById('instrument').selectedIndex].text;
+  const svgData=new XMLSerializer().serializeToString(svgEl);
+  const noteList=capturedNotes.map(n=>n.name+n.octave+'('+n.dur+')').join('  ');
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html>
+<html><head><title>Saxophone Transcription</title>
+<style>body{font-family:serif;margin:48px;color:#111}h2{font-size:20px;font-weight:normal;margin-bottom:6px}.meta{font-size:12px;color:#666;margin-bottom:24px}.staff{border:1px solid #eee;padding:16px;border-radius:8px;overflow-x:auto}svg{display:block}.notes{font-size:12px;color:#666;margin-top:16px;font-family:monospace;word-break:break-all}@media print{button{display:none!important}}.pb{margin-top:24px;padding:10px 24px;font-size:15px;cursor:pointer;border:1px solid #333;border-radius:6px;background:white}</style>
+</head><body>
+<h2>Saxophone Transcription</h2>
+<div class="meta">
+  ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}
+  &nbsp;·&nbsp; ${instLabel}
+  &nbsp;·&nbsp; Key of ${getKey()}
+  &nbsp;·&nbsp; ${document.getElementById('timesig').value}
+  &nbsp;·&nbsp; ${BPM} BPM
+  &nbsp;·&nbsp; ${capturedNotes.length} notes
+</div>
+<div class="staff">${svgData}</div>
+<div class="notes">${noteList}</div>
+<br><button class="pb" onclick="window.print()">Print / Save as PDF</button>
+</body></html>`);
+  w.document.close();
+}
+
+</script>
+</body>
+</html>
