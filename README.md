@@ -3,7 +3,7 @@
 A web app for transcribing saxophone notes in real time.
 
 ## Live site
-https://rickparma.github.io/transcriber/
+https://saxmanrp.github.io/transcriber/
 
 ## Editing
 1. Click on index.html in this repo
